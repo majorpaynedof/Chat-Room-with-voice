@@ -119,8 +119,9 @@ NODE_VERSION="20"
 # ══════════════════════════════════════════════
 
 get_next_ct_id() {
+  # Proxmox shares IDs between VMs (qm) and containers (pct) — must check both
   local id=100
-  while pct status "$id" &>/dev/null; do
+  while pct status "$id" &>/dev/null || qm status "$id" &>/dev/null; do
     ((id++))
   done
   echo "$id"
