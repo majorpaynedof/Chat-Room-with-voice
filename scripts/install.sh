@@ -129,18 +129,67 @@ get_next_ct_id() {
 detect_storage() {
   msg_info "Detecting available storage"
 
-  # pvesm status columns: Name($1) Type($2) Status($3) Total($4) Used($5) Available($6) %($7)
-  # Filter to active storage pools that support container rootdir
-  local storages
-  storages=$(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 && $3=="active" {print $1}' || true)
+  # Capture pvesm output to a temp file to avoid subshell/pipefail issues
+  local tmpfile
+  tmpfile=$(mktemp)
 
+  # Disable ERR trap temporarily — pvesm might return non-zero
+  trap - ERR
+  pvesm status > "$tmpfile" 2>/dev/null || true
+  trap 'error_handler ${LINENO} "$BASH_COMMAND"' ERR
+
+  # Parse: Name($1) Type($2) Status($3) — skip header, find active non-backup storage
+  # Prefer lvmthin/zfspool/lvm for rootfs; fall back to dir
+  local storages=""
+  local line name stype sstatus
+
+  while IFS= read -r line; do
+    # Skip header
+    [[ "$line" =~ ^Name ]] && continue
+    # Parse fields
+    name=$(echo "$line" | awk '{print $1}')
+    stype=$(echo "$line" | awk '{print $2}')
+    sstatus=$(echo "$line" | awk '{print $3}')
+
+    # Only active storage, skip pbs (backup) and disabled
+    [[ "$sstatus" != "active" ]] && continue
+    [[ "$stype" == "pbs" ]] && continue
+
+    # Skip dir storage named "local" (usually only holds ISOs/templates, not rootfs)
+    # unless it's the only option (handled below)
+    if [[ "$stype" == "dir" && "$name" == "local" ]]; then
+      continue
+    fi
+
+    if [[ -z "$storages" ]]; then
+      storages="$name"
+    else
+      storages="${storages}"$'\n'"${name}"
+    fi
+  done < "$tmpfile"
+
+  # If nothing found, retry including "local" dir storage as last resort
   if [[ -z "$storages" ]]; then
-    # Fallback: any active storage (exclude pbs backup storage)
-    storages=$(pvesm status 2>/dev/null | awk 'NR>1 && $3=="active" && $2!="pbs" {print $1}' || true)
+    while IFS= read -r line; do
+      [[ "$line" =~ ^Name ]] && continue
+      name=$(echo "$line" | awk '{print $1}')
+      stype=$(echo "$line" | awk '{print $2}')
+      sstatus=$(echo "$line" | awk '{print $3}')
+      [[ "$sstatus" != "active" ]] && continue
+      [[ "$stype" == "pbs" ]] && continue
+      if [[ -z "$storages" ]]; then
+        storages="$name"
+      else
+        storages="${storages}"$'\n'"${name}"
+      fi
+    done < "$tmpfile"
   fi
 
+  rm -f "$tmpfile"
+
   if [[ -z "$storages" ]]; then
-    msg_error "No active storage pools found. Check 'pvesm status'."
+    msg_error "No active storage pools found."
+    echo -e "${TAB}  ${YW}Run 'pvesm status' manually to check your storage configuration.${CL}"
     exit 1
   fi
 
@@ -159,10 +208,12 @@ detect_storage() {
     local storage_array=()
     while IFS= read -r s; do
       storage_array+=("$s")
-      local stype savail
-      stype=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {print $2}')
-      savail=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {printf "%.1fGB", $6/1024/1024}')
-      echo -e "${TAB}  ${GN}${i})${CL} ${s} ${DGN}(${stype}, ${savail} free)${CL}"
+      # Re-read info from pvesm
+      trap - ERR
+      local sinfo
+      sinfo=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {printf "%s, %.1fGB free", $2, $6/1024/1024}')
+      trap 'error_handler ${LINENO} "$BASH_COMMAND"' ERR
+      echo -e "${TAB}  ${GN}${i})${CL} ${s} ${DGN}(${sinfo})${CL}"
       ((i++))
     done <<< "$storages"
     echo ""
