@@ -111,6 +111,7 @@ CT_OS="debian"
 CT_OS_VERSION="12"
 CT_UNPRIVILEGED="1"
 CT_TEMPLATE=""
+CT_STORAGE=""
 NODE_VERSION="20"
 
 # ══════════════════════════════════════════════
@@ -123,6 +124,53 @@ get_next_ct_id() {
     ((id++))
   done
   echo "$id"
+}
+
+detect_storage() {
+  msg_info "Detecting available storage"
+
+  # Get storage pools that support rootdir (container root filesystem)
+  local storages
+  storages=$(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 && $2=="active" {print $1}' || true)
+
+  if [[ -z "$storages" ]]; then
+    # Fallback: try storage that supports images
+    storages=$(pvesm status 2>/dev/null | awk 'NR>1 && $2=="active" {print $1}' || true)
+  fi
+
+  if [[ -z "$storages" ]]; then
+    msg_error "No active storage pools found. Check 'pvesm status'."
+    exit 1
+  fi
+
+  # Count available storages
+  local count
+  count=$(echo "$storages" | wc -l)
+
+  if [[ "$count" -eq 1 ]]; then
+    CT_STORAGE="$storages"
+    msg_ok "Storage: ${CT_STORAGE}"
+  else
+    msg_ok "Found ${count} storage pools"
+    echo ""
+    echo -e "${TAB}${BOLD}Available storage pools:${CL}"
+    local i=1
+    local storage_array=()
+    while IFS= read -r s; do
+      storage_array+=("$s")
+      local stype sused savail
+      stype=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {print $3}')
+      savail=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {printf "%.1fGB", $5/1024/1024}')
+      echo -e "${TAB}  ${GN}${i})${CL} ${s} ${DGN}(${stype}, ${savail} free)${CL}"
+      ((i++))
+    done <<< "$storages"
+    echo ""
+    read -rp "${TAB}Select storage [1]: " choice
+    choice="${choice:-1}"
+    CT_STORAGE="${storage_array[$((choice-1))]}"
+    echo ""
+    msg_ok "Storage: ${CT_STORAGE}"
+  fi
 }
 
 select_template() {
@@ -158,6 +206,7 @@ prompt_settings() {
   echo -e "${TAB}${DGN}Container ID:    ${GN}${CT_ID}${CL}"
   echo -e "${TAB}${DGN}Hostname:        ${GN}${CT_HOSTNAME}${CL}"
   echo -e "${TAB}${DGN}OS:              ${GN}Debian 12${CL}"
+  echo -e "${TAB}${DGN}Storage:         ${GN}${CT_STORAGE}${CL}"
   echo -e "${TAB}${DGN}Disk:            ${GN}${CT_DISK}GB${CL}"
   echo -e "${TAB}${DGN}CPU Cores:       ${GN}${CT_CORES}${CL}"
   echo -e "${TAB}${DGN}Memory:          ${GN}${CT_MEMORY}MB${CL}"
@@ -173,6 +222,7 @@ prompt_settings() {
     echo ""
     read -rp "${TAB}Container ID [${CT_ID}]: " input && CT_ID="${input:-$CT_ID}"
     read -rp "${TAB}Hostname [${CT_HOSTNAME}]: " input && CT_HOSTNAME="${input:-$CT_HOSTNAME}"
+    read -rp "${TAB}Storage [${CT_STORAGE}]: " input && CT_STORAGE="${input:-$CT_STORAGE}"
     read -rp "${TAB}Disk Size GB [${CT_DISK}]: " input && CT_DISK="${input:-$CT_DISK}"
     read -rp "${TAB}CPU Cores [${CT_CORES}]: " input && CT_CORES="${input:-$CT_CORES}"
     read -rp "${TAB}Memory MB [${CT_MEMORY}]: " input && CT_MEMORY="${input:-$CT_MEMORY}"
@@ -198,18 +248,25 @@ create_lxc() {
     fi
   fi
 
-  pct create "$CT_ID" "$CT_TEMPLATE" \
+  local pct_output
+  if ! pct_output=$(pct create "$CT_ID" "$CT_TEMPLATE" \
     --hostname "$CT_HOSTNAME" \
     --memory "$CT_MEMORY" \
     --swap "$CT_SWAP" \
     --cores "$CT_CORES" \
-    --rootfs "local-lvm:${CT_DISK}" \
+    --rootfs "${CT_STORAGE}:${CT_DISK}" \
     --net0 "$net_config" \
     --unprivileged "$CT_UNPRIVILEGED" \
     --features nesting=1 \
     --onboot 1 \
     --start 0 \
-    &>/dev/null
+    2>&1); then
+    msg_error "Failed to create LXC container"
+    echo -e "${TAB}  ${RD}${pct_output}${CL}"
+    echo ""
+    echo -e "${TAB}${YW}Tip: Check storage with 'pvesm status' and bridges with 'ip link'.${CL}"
+    exit 1
+  fi
 
   msg_ok "LXC container ${CT_ID} created"
 }
@@ -548,6 +605,7 @@ main() {
     echo -e "${BOLD}${GN}  Proxmox VE detected — Creating LXC Container${CL}\n"
 
     select_template
+    detect_storage
     prompt_settings
     create_lxc
     push_install_script
