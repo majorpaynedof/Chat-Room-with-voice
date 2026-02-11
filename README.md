@@ -1,6 +1,6 @@
-# Discord Clone - Self-Hosted Chat Application
+# Chat Room - Self-Hosted Chat Application
 
-A self-hosted Discord-like chat application supporting **text channels**, **image sharing**, and **voice chat** via WebRTC.
+A self-hosted chat application supporting **text channels**, **image sharing**, and **voice chat** via WebRTC.
 
 ## Features
 
@@ -11,7 +11,7 @@ A self-hosted Discord-like chat application supporting **text channels**, **imag
 - **Server Management** — Create servers, invite via server ID, manage channels
 - **User Presence** — Online/offline status indicators
 - **Persistent Storage** — SQLite database, no external database server needed
-- **Dark Theme** — Discord-inspired dark UI
+- **Dark Theme** — Modern dark UI
 
 ## Tech Stack
 
@@ -72,7 +72,7 @@ curl -fsSL https://raw.githubusercontent.com/majorpaynedof/Chat-Room-with-voice/
 Update an existing installation:
 
 ```bash
-bash /opt/discord-clone/scripts/install.sh --update
+bash /opt/chat-room/scripts/install.sh --update
 ```
 
 ---
@@ -145,7 +145,7 @@ In the Proxmox web UI (`https://<proxmox-ip>:8006`):
 
 1. Click **Create CT** (top right)
 2. Configure:
-   - **Hostname:** `discord-clone`
+   - **Hostname:** `chat-room`
    - **Template:** Ubuntu 22.04 or Debian 12 (download from template list)
    - **Disk:** 4GB+ (8GB recommended)
    - **CPU:** 1-2 cores
@@ -163,7 +163,7 @@ pveam download local debian-12-standard_12.2-1_amd64.tar.zst
 
 # Create container
 pct create 200 local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst \
-  --hostname discord-clone \
+  --hostname chat-room \
   --memory 1024 \
   --cores 2 \
   --rootfs local-lvm:8 \
@@ -193,8 +193,8 @@ apt install -y build-essential python3 git
 ```bash
 # Clone the repo
 cd /opt
-git clone <your-repo-url> discord-clone
-cd discord-clone
+git clone <your-repo-url> chat-room
+cd chat-room
 
 # Install dependencies
 npm install --production
@@ -212,20 +212,20 @@ nano .env
 ### Step 4: Create a Systemd Service
 
 ```bash
-cat > /etc/systemd/system/discord-clone.service << 'EOF'
+cat > /etc/systemd/system/chat-room.service << 'EOF'
 [Unit]
-Description=Discord Clone Chat Application
+Description=Chat Room - Self-hosted Chat Application
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/discord-clone
+WorkingDirectory=/opt/chat-room
 ExecStart=/usr/bin/node server/index.js
 Restart=on-failure
 RestartSec=5
 Environment=NODE_ENV=production
-EnvironmentFile=/opt/discord-clone/.env
+EnvironmentFile=/opt/chat-room/.env
 
 [Install]
 WantedBy=multi-user.target
@@ -233,14 +233,14 @@ EOF
 
 # Enable and start
 systemctl daemon-reload
-systemctl enable discord-clone
-systemctl start discord-clone
+systemctl enable chat-room
+systemctl start chat-room
 
 # Check status
-systemctl status discord-clone
+systemctl status chat-room
 
 # View logs
-journalctl -u discord-clone -f
+journalctl -u chat-room -f
 ```
 
 ### Step 5: Access
@@ -267,7 +267,7 @@ In Proxmox, create the container with **nesting** and **keyctl** features:
 
 ```bash
 pct create 201 local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst \
-  --hostname discord-docker \
+  --hostname chat-room-docker \
   --memory 2048 \
   --cores 2 \
   --rootfs local-lvm:16 \
@@ -299,8 +299,8 @@ docker compose version
 
 ```bash
 cd /opt
-git clone <your-repo-url> discord-clone
-cd discord-clone
+git clone <your-repo-url> chat-room
+cd chat-room
 
 cp .env.example .env
 nano .env  # Set SESSION_SECRET

@@ -1,7 +1,7 @@
 {
-  "name": "discord-clone",
+  "name": "chat-room-with-voice",
   "version": "1.0.0",
-  "description": "Self-hosted Discord-like chat application with text, image, and voice support",
+  "description": "Self-hosted chat application with text, image, and voice support",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

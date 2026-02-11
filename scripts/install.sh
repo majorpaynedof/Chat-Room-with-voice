@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024 Discord Clone
+# Copyright (c) 2024 Chat Room
 # License: MIT
-# Self-hosted Discord Clone - Proxmox LXC Helper Script
+# Self-hosted Chat Room - Proxmox LXC Helper Script
 # Inspired by community-scripts/ProxmoxVE style
 
 set -Eeuo pipefail
@@ -53,11 +53,11 @@ header() {
   clear
   cat <<"EOF"
 
-     ____  _                       _    ____ _
-    |  _ \(_)___  ___ ___  _ __ __| |  / ___| | ___  _ __   ___
-    | | | | / __|/ __/ _ \| '__/ _` | | |   | |/ _ \| '_ \ / _ \
-    | |_| | \__ \ (_| (_) | | | (_| | | |___| | (_) | | | |  __/
-    |____/|_|___/\___\___/|_|  \__,_|  \____|_|\___/|_| |_|\___|
+      ____ _           _     ____
+     / ___| |__   __ _| |_  |  _ \ ___   ___  _ __ ___
+    | |   | '_ \ / _` | __| | |_) / _ \ / _ \| '_ ` _ \
+    | |___| | | | (_| | |_  |  _ < (_) | (_) | | | | | |
+     \____|_| |_|\__,_|\__| |_| \_\___/ \___/|_| |_| |_|
 
     Self-Hosted Chat with Text, Images & Voice
     Proxmox VE LXC Helper Script
@@ -90,16 +90,16 @@ detect_environment() {
 # ──────────────────────────────────────────────
 # Defaults
 # ──────────────────────────────────────────────
-APP_NAME="Discord Clone"
-APP_DIR="/opt/discord-clone"
+APP_NAME="Chat Room"
+APP_DIR="/opt/chat-room"
 APP_PORT="3000"
-APP_SERVICE="discord-clone"
+APP_SERVICE="chat-room"
 REPO_URL="https://github.com/majorpaynedof/Chat-Room-with-voice.git"
 REPO_BRANCH="${REPO_BRANCH:-main}"  # Override with: REPO_BRANCH=some-branch bash install.sh
 
 # LXC defaults
 CT_ID=""
-CT_HOSTNAME="discord-clone"
+CT_HOSTNAME="chat-room"
 CT_DISK="8"
 CT_CORES="2"
 CT_MEMORY="1024"
@@ -396,7 +396,7 @@ show_completion() {
   echo -e "${TAB}   ${GN}UDP 49152-65535${CL} — media relay"
   echo ""
   echo -e "${TAB}${YW}TURN config:${CL} ${DGN}/etc/turnserver.conf${CL} (inside container)"
-  echo -e "${TAB}${YW}App config:${CL}  ${DGN}/opt/discord-clone/.env${CL} (inside container)"
+  echo -e "${TAB}${YW}App config:${CL}  ${DGN}/opt/chat-room/.env${CL} (inside container)"
   echo ""
   echo -e "${BL}══════════════════════════════════════════════════${CL}"
 }
@@ -436,7 +436,7 @@ install_nodejs() {
 }
 
 install_application() {
-  msg_info "Cloning Discord Clone repository"
+  msg_info "Cloning Chat Room repository"
 
   if [[ -d "${APP_DIR}/.git" ]]; then
     cd "${APP_DIR}"
@@ -478,7 +478,7 @@ create_service() {
 
   cat > /etc/systemd/system/${APP_SERVICE}.service <<EOF
 [Unit]
-Description=Discord Clone - Self-hosted Chat Application
+Description=Chat Room - Self-hosted Chat Application
 Documentation=https://github.com/majorpaynedof/Chat-Room-with-voice
 After=network.target
 
@@ -527,7 +527,7 @@ install_coturn() {
   # Generate credentials
   local turn_password
   turn_password=$(openssl rand -hex 16)
-  local turn_user="discord-clone"
+  local turn_user="chat-room"
 
   # Detect the container's IP for the listening address
   local listen_ip
@@ -538,7 +538,7 @@ install_coturn() {
   external_ip=$(curl -s -4 --max-time 5 https://ifconfig.me 2>/dev/null || echo "$listen_ip")
 
   cat > /etc/turnserver.conf <<EOF
-# Discord Clone - TURN server configuration
+# Chat Room - TURN server configuration
 # Docs: https://github.com/coturn/coturn
 
 # Network
@@ -555,7 +555,7 @@ max-port=65535
 fingerprint
 lt-cred-mech
 user=${turn_user}:${turn_password}
-realm=discord-clone
+realm=chat-room
 
 # Limits
 total-quota=100
@@ -605,14 +605,14 @@ setup_motd() {
   cat > /etc/motd <<'EOF'
 
     ╔══════════════════════════════════════════╗
-    ║     Discord Clone - Chat Application     ║
+    ║       Chat Room - Chat Application       ║
     ║   Text • Images • Voice (WebRTC)         ║
     ╚══════════════════════════════════════════╝
 
-    App Dir:    /opt/discord-clone
-    Service:    systemctl status discord-clone
-    Logs:       journalctl -u discord-clone -f
-    Config:     /opt/discord-clone/.env
+    App Dir:    /opt/chat-room
+    Service:    systemctl status chat-room
+    Logs:       journalctl -u chat-room -f
+    Config:     /opt/chat-room/.env
 
     TURN:       systemctl status coturn
     TURN Conf:  /etc/turnserver.conf
