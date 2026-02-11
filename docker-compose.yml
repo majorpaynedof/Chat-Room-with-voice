@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: discord-clone
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-to-a-random-secret}
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-10}
+    volumes:
+      - app-data:/app/data
+      - app-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Reverse proxy with auto-HTTPS
+  # Uncomment below if you want nginx reverse proxy
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: discord-clone-proxy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - certs:/etc/letsencrypt
+  #   depends_on:
+  #     - app
+
+  # Optional: TURN server for voice chat behind NAT
+  # Uncomment if voice chat doesn't work for remote users
+  # coturn:
+  #   image: coturn/coturn:latest
+  #   container_name: discord-clone-turn
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   volumes:
+  #     - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+volumes:
+  app-data:
+  app-uploads:
