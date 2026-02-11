@@ -129,13 +129,14 @@ get_next_ct_id() {
 detect_storage() {
   msg_info "Detecting available storage"
 
-  # Get storage pools that support rootdir (container root filesystem)
+  # pvesm status columns: Name($1) Type($2) Status($3) Total($4) Used($5) Available($6) %($7)
+  # Filter to active storage pools that support container rootdir
   local storages
-  storages=$(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 && $2=="active" {print $1}' || true)
+  storages=$(pvesm status --content rootdir 2>/dev/null | awk 'NR>1 && $3=="active" {print $1}' || true)
 
   if [[ -z "$storages" ]]; then
-    # Fallback: try storage that supports images
-    storages=$(pvesm status 2>/dev/null | awk 'NR>1 && $2=="active" {print $1}' || true)
+    # Fallback: any active storage (exclude pbs backup storage)
+    storages=$(pvesm status 2>/dev/null | awk 'NR>1 && $3=="active" && $2!="pbs" {print $1}' || true)
   fi
 
   if [[ -z "$storages" ]]; then
@@ -158,9 +159,9 @@ detect_storage() {
     local storage_array=()
     while IFS= read -r s; do
       storage_array+=("$s")
-      local stype sused savail
-      stype=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {print $3}')
-      savail=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {printf "%.1fGB", $5/1024/1024}')
+      local stype savail
+      stype=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {print $2}')
+      savail=$(pvesm status 2>/dev/null | awk -v name="$s" '$1==name {printf "%.1fGB", $6/1024/1024}')
       echo -e "${TAB}  ${GN}${i})${CL} ${s} ${DGN}(${stype}, ${savail} free)${CL}"
       ((i++))
     done <<< "$storages"
