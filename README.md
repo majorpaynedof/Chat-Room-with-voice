@@ -43,6 +43,34 @@ Open `http://localhost:3000` in your browser.
 
 ---
 
+## Proxmox LXC One-Liner (Helper Script)
+
+Run this on your **Proxmox host** to auto-create an LXC container and install everything:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/majorpaynedof/Chat-Room-with-voice/main/scripts/install.sh)"
+```
+
+This will:
+1. Download a Debian 12 template (if needed)
+2. Create an LXC container with sensible defaults (2 cores, 1GB RAM, 8GB disk)
+3. Install Node.js 20, clone the app, configure systemd service
+4. Print the access URL when done
+
+You can also run the script **inside any existing Linux machine/container**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/majorpaynedof/Chat-Room-with-voice/main/scripts/install.sh | bash -s -- --install
+```
+
+Update an existing installation:
+
+```bash
+bash /opt/discord-clone/scripts/install.sh --update
+```
+
+---
+
 ## Deployment Option 1: Docker Compose (Recommended)
 
 ### Prerequisites
