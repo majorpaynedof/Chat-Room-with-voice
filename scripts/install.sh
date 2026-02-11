@@ -95,6 +95,7 @@ APP_DIR="/opt/discord-clone"
 APP_PORT="3000"
 APP_SERVICE="discord-clone"
 REPO_URL="https://github.com/majorpaynedof/Chat-Room-with-voice.git"
+REPO_BRANCH="${REPO_BRANCH:-main}"  # Override with: REPO_BRANCH=some-branch bash install.sh
 
 # LXC defaults
 CT_ID=""
@@ -311,11 +312,11 @@ install_nodejs() {
 install_application() {
   msg_info "Cloning Discord Clone repository"
 
-  if [[ -d "${APP_DIR}" ]]; then
+  if [[ -d "${APP_DIR}/.git" ]]; then
     cd "${APP_DIR}"
     git pull --quiet &>/dev/null
   else
-    git clone --quiet "${REPO_URL}" "${APP_DIR}" &>/dev/null
+    git clone --quiet --branch "${REPO_BRANCH}" "${REPO_URL}" "${APP_DIR}" &>/dev/null
   fi
 
   msg_ok "Repository cloned to ${APP_DIR}"

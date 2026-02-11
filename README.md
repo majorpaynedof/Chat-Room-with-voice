@@ -51,6 +51,12 @@ Run this on your **Proxmox host** to auto-create an LXC container and install ev
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/majorpaynedof/Chat-Room-with-voice/main/scripts/install.sh)"
 ```
 
+> **Before merging to main?** Use the branch URL instead:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/majorpaynedof/Chat-Room-with-voice/claude/discord-clone-app-Z7XOm/scripts/install.sh -o install.sh
+> REPO_BRANCH=claude/discord-clone-app-Z7XOm bash install.sh
+> ```
+
 This will:
 1. Download a Debian 12 template (if needed)
 2. Create an LXC container with sensible defaults (2 cores, 1GB RAM, 8GB disk)
