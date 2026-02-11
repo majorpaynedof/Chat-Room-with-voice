@@ -688,23 +688,21 @@ function toggleMute() {
 }
 
 async function createPeerConnection(remoteSocketId, isInitiator) {
-  const config = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-  };
-
-  // Add TURN server if configured
-  const turnUrl = document.querySelector('meta[name="turn-url"]')?.content;
-  if (turnUrl) {
-    config.iceServers.push({
-      urls: turnUrl,
-      username: document.querySelector('meta[name="turn-username"]')?.content || '',
-      credential: document.querySelector('meta[name="turn-password"]')?.content || '',
-    });
+  // Fetch ICE/TURN config from server (cached after first call)
+  if (!state.iceConfig) {
+    try {
+      state.iceConfig = await api('/api/ice-config');
+    } catch {
+      state.iceConfig = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      };
+    }
   }
 
+  const config = { iceServers: state.iceConfig.iceServers };
   const pc = new RTCPeerConnection(config);
   state.voiceConnections.set(remoteSocketId, pc);
 

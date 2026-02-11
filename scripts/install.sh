@@ -120,10 +120,19 @@ NODE_VERSION="20"
 
 get_next_ct_id() {
   # Proxmox shares IDs between VMs (qm) and containers (pct) — must check both
+  # Disable ERR trap since status commands exit non-zero for missing IDs
+  trap - ERR
   local id=100
-  while pct status "$id" &>/dev/null || qm status "$id" &>/dev/null; do
+  while true; do
+    local pct_exists=0 qm_exists=0
+    pct status "$id" &>/dev/null && pct_exists=1
+    qm status "$id" &>/dev/null && qm_exists=1
+    if [[ "$pct_exists" -eq 0 && "$qm_exists" -eq 0 ]]; then
+      break
+    fi
     ((id++))
   done
+  trap 'error_handler ${LINENO} "$BASH_COMMAND"' ERR
   echo "$id"
 }
 
@@ -379,8 +388,15 @@ show_completion() {
   echo -e "${TAB} ${DGN}systemctl status ${APP_SERVICE}${CL}"
   echo -e "${TAB} ${DGN}journalctl -u ${APP_SERVICE} -f${CL}"
   echo ""
-  echo -e "${TAB}${YW}Voice chat over internet:${CL}"
-  echo -e "${TAB} Requires a TURN server. See README.md for setup."
+  echo -e "${TAB}${YW}Voice chat (TURN server):${CL}"
+  echo -e "${TAB} coturn is installed and running inside the container."
+  echo -e "${TAB} For voice to work over the internet, forward these ports"
+  echo -e "${TAB} to the container IP (${ct_ip}):"
+  echo -e "${TAB}   ${GN}UDP+TCP 3478${CL}  — TURN signaling"
+  echo -e "${TAB}   ${GN}UDP 49152-65535${CL} — media relay"
+  echo ""
+  echo -e "${TAB}${YW}TURN config:${CL} ${DGN}/etc/turnserver.conf${CL} (inside container)"
+  echo -e "${TAB}${YW}App config:${CL}  ${DGN}/opt/discord-clone/.env${CL} (inside container)"
   echo ""
   echo -e "${BL}══════════════════════════════════════════════════${CL}"
 }
@@ -501,6 +517,89 @@ EOF
   fi
 }
 
+install_coturn() {
+  msg_info "Installing coturn (TURN server for voice chat)"
+  apt-get install -y -qq coturn &>/dev/null
+  msg_ok "coturn installed"
+
+  msg_info "Configuring coturn"
+
+  # Generate credentials
+  local turn_password
+  turn_password=$(openssl rand -hex 16)
+  local turn_user="discord-clone"
+
+  # Detect the container's IP for the listening address
+  local listen_ip
+  listen_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+  # Get the external/public IP — user can change this later
+  local external_ip
+  external_ip=$(curl -s -4 --max-time 5 https://ifconfig.me 2>/dev/null || echo "$listen_ip")
+
+  cat > /etc/turnserver.conf <<EOF
+# Discord Clone - TURN server configuration
+# Docs: https://github.com/coturn/coturn
+
+# Network
+listening-port=3478
+tls-listening-port=5349
+listening-ip=${listen_ip}
+external-ip=${external_ip}/${listen_ip}
+
+# Relay ports for media
+min-port=49152
+max-port=65535
+
+# Authentication
+fingerprint
+lt-cred-mech
+user=${turn_user}:${turn_password}
+realm=discord-clone
+
+# Limits
+total-quota=100
+stale-nonce=600
+no-tcp-relay
+
+# Logging
+log-file=/var/log/turnserver.log
+simple-log
+EOF
+
+  # Enable coturn daemon
+  if [[ -f /etc/default/coturn ]]; then
+    sed -i 's/#TURNSERVER_ENABLED=1/TURNSERVER_ENABLED=1/' /etc/default/coturn
+  fi
+
+  systemctl enable coturn &>/dev/null
+  systemctl restart coturn &>/dev/null
+  sleep 1
+
+  if systemctl is-active --quiet coturn; then
+    msg_ok "coturn running on port 3478"
+  else
+    msg_warn "coturn installed but may not be running. Check: journalctl -u coturn"
+  fi
+
+  # Add TURN config to app .env
+  {
+    echo ""
+    echo "# TURN server (coturn) for voice chat"
+    echo "TURN_URL=turn:${external_ip}:3478"
+    echo "TURN_USERNAME=${turn_user}"
+    echo "TURN_PASSWORD=${turn_password}"
+  } >> "${APP_DIR}/.env"
+
+  # Store credentials for the completion message
+  TURN_CONFIGURED=1
+  TURN_EXT_IP="${external_ip}"
+  TURN_USER="${turn_user}"
+  TURN_PASS="${turn_password}"
+
+  msg_ok "TURN credentials added to ${APP_DIR}/.env"
+}
+
 setup_motd() {
   # Custom login banner
   cat > /etc/motd <<'EOF'
@@ -514,6 +613,9 @@ setup_motd() {
     Service:    systemctl status discord-clone
     Logs:       journalctl -u discord-clone -f
     Config:     /opt/discord-clone/.env
+
+    TURN:       systemctl status coturn
+    TURN Conf:  /etc/turnserver.conf
 
 EOF
 }
@@ -535,6 +637,9 @@ run_install() {
   install_application
   configure_environment
   create_service
+  install_coturn
+  # Restart app so it picks up TURN config
+  systemctl restart ${APP_SERVICE} &>/dev/null
   setup_motd
   cleanup
 
@@ -563,6 +668,8 @@ run_standalone_install() {
   install_application
   configure_environment
   create_service
+  install_coturn
+  systemctl restart ${APP_SERVICE} &>/dev/null
   setup_motd
   cleanup
 
@@ -580,6 +687,13 @@ run_standalone_install() {
   echo -e "${TAB} ${DGN}systemctl status ${APP_SERVICE}${CL}"
   echo -e "${TAB} ${DGN}systemctl restart ${APP_SERVICE}${CL}"
   echo -e "${TAB} ${DGN}journalctl -u ${APP_SERVICE} -f${CL}"
+  if [[ "${TURN_CONFIGURED:-0}" == "1" ]]; then
+    echo ""
+    echo -e "${TAB}${YW}TURN server (voice chat):${CL}"
+    echo -e "${TAB} ${DGN}systemctl status coturn${CL}"
+    echo -e "${TAB} ${GN}Port:${CL} 3478 (UDP+TCP) — must be open/forwarded"
+    echo -e "${TAB} ${GN}Relay:${CL} 49152-65535 (UDP) — must be open/forwarded"
+  fi
   echo ""
   echo -e "${BL}══════════════════════════════════════════════════${CL}"
 }

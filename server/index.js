@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const MAX_UPLOAD_MB = parseInt(process.env.MAX_UPLOAD_SIZE || '10', 10);
+const TURN_URL = process.env.TURN_URL || '';
+const TURN_USERNAME = process.env.TURN_USERNAME || '';
+const TURN_PASSWORD = process.env.TURN_PASSWORD || '';
 
 // Ensure upload directory
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
@@ -99,6 +102,30 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   const user = db.getUser(req.session.userId);
   if (!user) return res.status(401).json({ error: 'User not found' });
   res.json(user);
+});
+
+// ICE/TURN config for voice chat
+app.get('/api/ice-config', requireAuth, (req, res) => {
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ];
+  if (TURN_URL) {
+    iceServers.push({
+      urls: TURN_URL,
+      username: TURN_USERNAME,
+      credential: TURN_PASSWORD,
+    });
+    // Also add turns (TLS) variant if available
+    if (TURN_URL.startsWith('turn:')) {
+      iceServers.push({
+        urls: TURN_URL.replace('turn:', 'turns:').replace(':3478', ':5349'),
+        username: TURN_USERNAME,
+        credential: TURN_PASSWORD,
+      });
+    }
+  }
+  res.json({ iceServers });
 });
 
 // Server routes
