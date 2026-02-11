@@ -18,6 +18,7 @@ const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app = express();
+app.set('trust proxy', 1); // Trust reverse proxy (Pangolin/Traefik/nginx)
 const server = http.createServer(app);
 
 // Session middleware (shared with Socket.IO)
@@ -25,7 +26,11 @@ const sessionMiddleware = session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+  cookie: {
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production (needed behind Pangolin)
+    sameSite: 'lax',
+  }
 });
 
 app.use(express.json());
