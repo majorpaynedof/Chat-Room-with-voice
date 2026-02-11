@@ -17,7 +17,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    avatar_color TEXT NOT NULL DEFAULT '#5865f2',
+    avatar_color TEXT NOT NULL DEFAULT '#7289da',
     status TEXT NOT NULL DEFAULT 'offline',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -26,7 +26,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     owner_id TEXT NOT NULL REFERENCES users(id),
-    icon_color TEXT NOT NULL DEFAULT '#5865f2',
+    icon_color TEXT NOT NULL DEFAULT '#7289da',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -152,7 +152,7 @@ const stmts = {
   getAllUsers: db.prepare('SELECT id, username, avatar_color, status FROM users'),
 };
 
-const COLORS = ['#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245', '#f47b67', '#e7a0ff'];
+const COLORS = ['#7289da', '#43b581', '#faa61a', '#e86b9a', '#e74c3c', '#e67e22', '#b9a0d9'];
 
 function randomColor() {
   return COLORS[Math.floor(Math.random() * COLORS.length)];

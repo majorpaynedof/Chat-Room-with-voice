@@ -399,5 +399,5 @@ function leaveVoiceChannel(socket, channelId) {
 }
 
 server.listen(PORT, HOST, () => {
-  console.log(`Discord Clone running at http://${HOST}:${PORT}`);
+  console.log(`Chat Room running at http://${HOST}:${PORT}`);
 });

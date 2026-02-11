@@ -71,6 +71,7 @@ let pendingImageUrl = null;
 // ============ API helpers ============
 async function api(url, options = {}) {
   const res = await fetch(url, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
@@ -414,7 +415,7 @@ async function showHome() {
 function showWelcomeScreen() {
   messagesEl.innerHTML = `
     <div class="welcome-screen">
-      <h2>Welcome to Discord Clone!</h2>
+      <h2>Welcome to Chat Room!</h2>
       <p>Select a server from the sidebar or start a direct message to begin chatting. Create your own server with the + button.</p>
     </div>
   `;
@@ -562,6 +563,7 @@ fileInput.addEventListener('change', async () => {
   try {
     const res = await fetch('/api/upload', {
       method: 'POST',
+      credentials: 'include',
       body: formData,
     });
     const data = await res.json();
